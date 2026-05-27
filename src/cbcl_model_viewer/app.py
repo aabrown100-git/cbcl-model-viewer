@@ -203,9 +203,6 @@ class CBCLModelViewerApp(TrameApp):
                         with v3.VCol(cols=12, md=8, classes="cbcl-viewer-col"):
                             self.view = plotter_ui(
                                 self.scene.plotter,
-                                mode="server",
-                                default_server_rendering=True,
-                                add_menu=False,
                             )
                             self.ctrl.view_update = self.view.update
                             self.ctrl.view_reset_camera = self.view.reset_camera
