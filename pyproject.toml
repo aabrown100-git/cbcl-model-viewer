@@ -1,0 +1,25 @@
+[project]
+name = "cbcl-model-viewer"
+version = "0.1.0"
+description = "Trame and PyVista viewer for CBCL VTK model libraries"
+requires-python = ">=3.10"
+dependencies = [
+  "pyvista>=0.48",
+  "pyyaml>=6",
+  "trame>=3",
+  "trame-vuetify>=3",
+  "trame-vtk>=2",
+]
+
+[project.scripts]
+cbcl-model-viewer = "cbcl_model_viewer.app:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

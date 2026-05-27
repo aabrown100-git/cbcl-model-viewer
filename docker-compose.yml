@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    image: cbcl-model-viewer:local
+    ports:
+      - "8080:8080"
+    environment:
+      CBCL_MODEL_LIBRARY: /app/models
+      CBCL_CACHE_DIR: /app/cache
+      TRAME_DEFAULT_HOST: 0.0.0.0
+      TRAME_SERVER: "true"
+      PYVISTA_OFF_SCREEN: "true"
+    volumes:
+      - /Users/aaronbrown/Downloads/Fontan_sim_results_example:/app/models:ro
+      - cbcl-model-cache:/app/cache
+
+volumes:
+  cbcl-model-cache:

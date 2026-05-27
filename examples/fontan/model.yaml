@@ -1,0 +1,17 @@
+id: fontan-sim-results-example
+title: Fontan Simulation Results Example
+description: Three timesteps from a Fontan simulation result. Mount the VTU folder as the model library to run this example without copying the large source files into the repo.
+default_scalar:
+  name: Velocity
+  mode: magnitude
+parts:
+  - id: flow
+    label: Flow domain
+    color: "#8C1515"
+    files:
+      - path: result_7200.vtu
+        label: "7200"
+      - path: result_7232.vtu
+        label: "7232"
+      - path: result_7264.vtu
+        label: "7264"
