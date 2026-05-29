@@ -28,6 +28,33 @@ class MetadataTests(unittest.TestCase):
                     "description": "Single static part.",
                     "default_scalar": {"name": "Pressure", "mode": "scalar"},
                     "ar": {"glb": "heart.glb", "usdz": "heart.usdz"},
+                    "visualizations": {
+                        "glyphs": [
+                            {
+                                "id": "velocity-glyphs",
+                                "label": "Velocity glyphs",
+                                "part": "heart",
+                                "vectors": "Velocity",
+                                "scale_factor": 0.6,
+                                "density": 0.3,
+                                "color_by": {"name": "Pressure", "mode": "scalar"},
+                            }
+                        ],
+                        "streamlines": [
+                            {
+                                "id": "flow-lines",
+                                "label": "Flow lines",
+                                "part": "heart",
+                                "vectors": "Velocity",
+                                "tube_radius": 0.02,
+                                "seed": {
+                                    "center": [0.0, 0.0, 0.0],
+                                    "radius": 0.4,
+                                    "points": 24,
+                                },
+                            }
+                        ],
+                    },
                     "parts": [
                         {
                             "id": "heart",
@@ -48,6 +75,9 @@ class MetadataTests(unittest.TestCase):
             self.assertEqual(model.default_scalar.name, "Pressure")
             self.assertEqual(model.ar_assets.glb, (root / "heart.glb").resolve())
             self.assertEqual(model.parts[0].files[0].path, (root / "heart.vtp").resolve())
+            self.assertEqual(model.glyphs[0].part_id, "heart")
+            self.assertEqual(model.glyphs[0].color_by.name, "Pressure")
+            self.assertEqual(model.streamlines[0].seed.points, 24)
 
     def test_loads_time_series_model_and_discovers_model_folders(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -131,6 +161,31 @@ class MetadataTests(unittest.TestCase):
 
             with self.assertRaisesRegex(MetadataError, "top-level mapping"):
                 load_model_metadata(path)
+
+    def test_rejects_visualizations_with_unknown_part(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "heart.vtp").write_text("<VTKFile></VTKFile>")
+            self._write_yaml(
+                root / "model.yaml",
+                {
+                    "id": "bad-vis",
+                    "title": "Bad vis",
+                    "visualizations": {
+                        "glyphs": [
+                            {
+                                "id": "bad-glyphs",
+                                "part": "missing-part",
+                                "vectors": "Velocity",
+                            }
+                        ]
+                    },
+                    "parts": [{"id": "heart", "files": [{"path": "heart.vtp"}]}],
+                },
+            )
+
+            with self.assertRaisesRegex(MetadataError, "unknown part"):
+                load_model_metadata(root / "model.yaml")
 
     @staticmethod
     def _write_yaml(path: Path, payload: dict[str, object]) -> None:

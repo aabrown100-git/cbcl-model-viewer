@@ -1,10 +1,10 @@
 # CBCL Model Viewer
 
-A trame + PyVista companion site for interactive visualization of CBCL VTK model libraries. Can show static or time-series `.vtp` / `.vtu` datasets and optional `.glb` / `.usdz` AR assets.
+A trame + PyVista companion site for interactive visualization of CBCL VTK model libraries. It supports static or time-series `.vtp` / `.vtu` datasets, optional `.glb` / `.usdz` AR assets, and metadata-driven velocity glyph and streamline overlays.
 
 ## Quick start
 
-Then open `http://localhost:8080`.
+Then open `http://localhost:8080`. The home page shows one card per model; clicking a card opens the full viewer.
 
 For a fresh environment:
 
@@ -42,6 +42,17 @@ default_scalar:
 ar:
   glb: preview.glb
   usdz: preview.usdz
+visualizations:
+  glyphs:
+    - id: velocity-glyphs
+      label: Velocity glyphs
+      part: flow
+      vectors: Velocity
+      scale_factor: 0.01
+      density: 5000
+      color_by:
+        name: Velocity
+        mode: magnitude
 parts:
   - id: flow
     label: Flow domain
@@ -62,6 +73,8 @@ Notes:
 - Time-series models use multiple files in each part. Parts with one file remain visible for every timestep.
 - `default_scalar.mode: magnitude` is useful for vector arrays such as `Velocity`, `WSS`, `Traction`, or `Vorticity`.
 - `.glb` and `.usdz` assets are optional. When present, the app shows an AR preview and open/download actions.
+- Glyph presets are vector-field arrow overlays tied to a named part and vector array.
+- Streamline presets are seeded in metadata and support a lightweight density control in the viewer.
 
 ## Fontan demo
 
@@ -104,6 +117,30 @@ docker run --rm -p 8080:8080 \
 ```
 
 The Docker setup is CPU/offscreen-first. If cloud performance requires GPU rendering, follow Kitware’s trame deployment guidance for EGL/GPU images and keep websocket proxying enabled.
+
+## Deploying in the cloud
+
+The simplest production path is a small Docker VM or container host with mounted model and cache volumes:
+
+1. Build the image locally or in CI.
+2. Push it to a registry that your cloud host can pull from.
+3. Provision a VM or container service with port `8080` exposed internally.
+4. Mount your model library at `/app/models` read-only and a persistent cache volume at `/app/cache` read-write.
+5. Run the container with `CBCL_MODEL_LIBRARY=/app/models` and `CBCL_CACHE_DIR=/app/cache`.
+6. Put NGINX, Caddy, or Traefik in front of it for HTTPS and websocket forwarding.
+
+A plain `docker run` shape looks like this:
+
+```bash
+docker run -d --name cbcl-model-viewer -p 8080:8080 \
+  -e CBCL_MODEL_LIBRARY=/app/models \
+  -e CBCL_CACHE_DIR=/app/cache \
+  -v /srv/cbcl-models:/app/models:ro \
+  -v /srv/cbcl-cache:/app/cache \
+  cbcl-model-viewer:latest
+```
+
+For a full VPS recipe plus an NGINX example, see [docs/deployment.md](/Users/aaronbrown/Desktop/Github/cbcl-model-viewer/docs/deployment.md).
 
 ## Reverse proxy notes
 

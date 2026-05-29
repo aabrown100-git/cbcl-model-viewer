@@ -4,6 +4,17 @@ description: Three timesteps from a Fontan simulation result. Mount the VTU fold
 default_scalar:
   name: Velocity
   mode: magnitude
+visualizations:
+  glyphs:
+    - id: velocity-glyphs
+      label: Velocity glyphs
+      part: flow
+      vectors: Velocity
+      scale_factor: 0.01
+      density: 5000
+      color_by:
+        name: Velocity
+        mode: magnitude
 parts:
   - id: flow
     label: Flow domain

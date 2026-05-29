@@ -52,6 +52,36 @@ class ModelPart:
 
 
 @dataclass(frozen=True)
+class GlyphPreset:
+    id: str
+    label: str
+    part_id: str
+    vectors: str
+    scale_factor: float = 1.0
+    density: float = 1.0
+    color: str | None = None
+    color_by: DefaultScalar = DefaultScalar()
+
+
+@dataclass(frozen=True)
+class StreamlineSeed:
+    center: tuple[float, float, float]
+    radius: float
+    points: int
+
+
+@dataclass(frozen=True)
+class StreamlinePreset:
+    id: str
+    label: str
+    part_id: str
+    vectors: str
+    seed: StreamlineSeed
+    tube_radius: float = 0.0
+    color_by: DefaultScalar = DefaultScalar()
+
+
+@dataclass(frozen=True)
 class ModelMetadata:
     id: str
     title: str
@@ -61,6 +91,8 @@ class ModelMetadata:
     description: str = ""
     default_scalar: DefaultScalar = DefaultScalar()
     ar_assets: ArAssets = ArAssets()
+    glyphs: tuple[GlyphPreset, ...] = ()
+    streamlines: tuple[StreamlinePreset, ...] = ()
 
     @property
     def is_time_series(self) -> bool:
@@ -81,6 +113,12 @@ class ModelMetadata:
         relative = path.relative_to(self.library_root)
         return f"{endpoint.rstrip('/')}/{relative.as_posix()}"
 
+    def part_by_id(self, part_id: str) -> ModelPart:
+        for part in self.parts:
+            if part.id == part_id:
+                return part
+        raise KeyError(part_id)
+
     def summary(self) -> dict[str, object]:
         return {
             "id": self.id,
@@ -90,6 +128,7 @@ class ModelMetadata:
             "part_count": len(self.parts),
             "timestep_count": self.timestep_count,
             "has_ar": self.ar_assets.has_assets,
+            "analysis_count": len(self.glyphs) + len(self.streamlines),
             "glb_url": self.asset_url(self.ar_assets.glb),
             "usdz_url": self.asset_url(self.ar_assets.usdz),
         }
@@ -125,6 +164,11 @@ def load_model_metadata(path: str | Path, library_root: str | Path | None = None
     ar_assets = _parse_ar_assets(root, payload.get("ar"))
     parts = _parse_parts(root, payload.get("parts"), metadata_path)
     _validate_timestep_lengths(parts, metadata_path)
+    glyphs, streamlines = _parse_visualizations(
+        payload.get("visualizations"),
+        metadata_path=metadata_path,
+        parts=parts,
+    )
 
     return ModelMetadata(
         id=model_id,
@@ -134,6 +178,8 @@ def load_model_metadata(path: str | Path, library_root: str | Path | None = None
         library_root=library,
         default_scalar=default_scalar,
         ar_assets=ar_assets,
+        glyphs=tuple(glyphs),
+        streamlines=tuple(streamlines),
         parts=tuple(parts),
     )
 
@@ -258,3 +304,149 @@ def _validate_timestep_lengths(parts: list[ModelPart], metadata_path: Path) -> N
         raise MetadataError(
             f"{metadata_path} has inconsistent time-series lengths across parts: {sorted(multi_lengths)}"
         )
+
+
+def _parse_visualizations(
+    value: Any,
+    *,
+    metadata_path: Path,
+    parts: list[ModelPart],
+) -> tuple[list[GlyphPreset], list[StreamlinePreset]]:
+    if value is None:
+        return [], []
+    if not isinstance(value, dict):
+        raise MetadataError(f"{metadata_path} field 'visualizations' must be a mapping.")
+
+    part_ids = {part.id for part in parts}
+    glyphs = _parse_glyphs(value.get("glyphs"), metadata_path, part_ids)
+    streamlines = _parse_streamlines(value.get("streamlines"), metadata_path, part_ids)
+    return glyphs, streamlines
+
+
+def _parse_glyphs(value: Any, metadata_path: Path, part_ids: set[str]) -> list[GlyphPreset]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise MetadataError(f"{metadata_path} field 'visualizations.glyphs' must be a list.")
+
+    presets: list[GlyphPreset] = []
+    seen_ids: set[str] = set()
+    for raw_preset in value:
+        if not isinstance(raw_preset, dict):
+            raise MetadataError("Each glyph preset must be a mapping.")
+        preset_id = _required_slug(raw_preset, "id", metadata_path)
+        if preset_id in seen_ids:
+            raise MetadataError(f"Duplicate glyph preset id: {preset_id}")
+        seen_ids.add(preset_id)
+        part_id = _required_text(raw_preset, "part", metadata_path)
+        if part_id not in part_ids:
+            raise MetadataError(f"Glyph preset '{preset_id}' references unknown part '{part_id}'.")
+        vectors = _required_text(raw_preset, "vectors", metadata_path)
+        scale_factor = _optional_number(raw_preset, "scale_factor", metadata_path, default=1.0)
+        density = _optional_number(raw_preset, "density", metadata_path, default=1.0)
+        if scale_factor <= 0:
+            raise MetadataError(f"Glyph preset '{preset_id}' scale_factor must be positive.")
+        if density <= 0:
+            raise MetadataError(f"Glyph preset '{preset_id}' density must be positive.")
+        color = _optional_color(raw_preset.get("color"), f"Glyph preset '{preset_id}'")
+        color_by = _parse_default_scalar(raw_preset.get("color_by"))
+        presets.append(
+            GlyphPreset(
+                id=preset_id,
+                label=str(raw_preset.get("label") or preset_id.replace("-", " ").title()),
+                part_id=part_id,
+                vectors=vectors,
+                scale_factor=scale_factor,
+                density=density,
+                color=color,
+                color_by=color_by,
+            )
+        )
+    return presets
+
+
+def _parse_streamlines(value: Any, metadata_path: Path, part_ids: set[str]) -> list[StreamlinePreset]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise MetadataError(f"{metadata_path} field 'visualizations.streamlines' must be a list.")
+
+    presets: list[StreamlinePreset] = []
+    seen_ids: set[str] = set()
+    for raw_preset in value:
+        if not isinstance(raw_preset, dict):
+            raise MetadataError("Each streamline preset must be a mapping.")
+        preset_id = _required_slug(raw_preset, "id", metadata_path)
+        if preset_id in seen_ids:
+            raise MetadataError(f"Duplicate streamline preset id: {preset_id}")
+        seen_ids.add(preset_id)
+        part_id = _required_text(raw_preset, "part", metadata_path)
+        if part_id not in part_ids:
+            raise MetadataError(f"Streamline preset '{preset_id}' references unknown part '{part_id}'.")
+        vectors = _required_text(raw_preset, "vectors", metadata_path)
+        seed = _parse_streamline_seed(raw_preset.get("seed"), metadata_path, preset_id)
+        tube_radius = _optional_number(raw_preset, "tube_radius", metadata_path, default=0.0)
+        if tube_radius < 0:
+            raise MetadataError(f"Streamline preset '{preset_id}' tube_radius must be non-negative.")
+        color_by = _parse_default_scalar(raw_preset.get("color_by"))
+        presets.append(
+            StreamlinePreset(
+                id=preset_id,
+                label=str(raw_preset.get("label") or preset_id.replace("-", " ").title()),
+                part_id=part_id,
+                vectors=vectors,
+                seed=seed,
+                tube_radius=tube_radius,
+                color_by=color_by,
+            )
+        )
+    return presets
+
+
+def _parse_streamline_seed(value: Any, metadata_path: Path, preset_id: str) -> StreamlineSeed:
+    if not isinstance(value, dict):
+        raise MetadataError(
+            f"{metadata_path} streamline preset '{preset_id}' requires a 'seed' mapping."
+        )
+    center = value.get("center")
+    if not isinstance(center, list | tuple) or len(center) != 3:
+        raise MetadataError(
+            f"Streamline preset '{preset_id}' seed.center must contain three numeric values."
+        )
+    try:
+        center_tuple = tuple(float(component) for component in center)
+    except (TypeError, ValueError) as exc:
+        raise MetadataError(
+            f"Streamline preset '{preset_id}' seed.center must contain numeric values."
+        ) from exc
+    radius = _required_number(value, "radius", metadata_path)
+    points = int(_required_number(value, "points", metadata_path))
+    if radius <= 0:
+        raise MetadataError(f"Streamline preset '{preset_id}' seed.radius must be positive.")
+    if points < 1:
+        raise MetadataError(f"Streamline preset '{preset_id}' seed.points must be positive.")
+    return StreamlineSeed(center=center_tuple, radius=radius, points=points)
+
+
+def _required_number(payload: dict[str, Any], key: str, metadata_path: Path) -> float:
+    value = payload.get(key)
+    if not isinstance(value, int | float):
+        raise MetadataError(f"{metadata_path} requires numeric field '{key}'.")
+    return float(value)
+
+
+def _optional_number(payload: dict[str, Any], key: str, metadata_path: Path, *, default: float) -> float:
+    if key not in payload or payload.get(key) is None:
+        return default
+    value = payload.get(key)
+    if not isinstance(value, int | float):
+        raise MetadataError(f"{metadata_path} field '{key}' must be numeric.")
+    return float(value)
+
+
+def _optional_color(value: Any, owner: str) -> str | None:
+    if value in (None, ""):
+        return None
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", str(value)):
+        raise MetadataError(f"{owner} color must use #RRGGBB format.")
+    return str(value).upper()
