@@ -6,7 +6,7 @@ import numpy as np
 import pyvista as pv
 
 from .cache import SurfaceCache
-from .models import GlyphPreset, ModelMetadata, StreamlinePreset
+from .models import GlyphPreset, ModelMetadata
 
 DEFAULT_COLORS = [
     "#C9362D",
@@ -36,21 +36,15 @@ class ModelScene:
         timestep_index: int = 0,
         visible_parts: set[str] | None = None,
         glyph_states: dict[str, dict[str, object]] | None = None,
-        streamline_states: dict[str, dict[str, object]] | None = None,
+        show_axes: bool = True,
     ) -> None:
         self.plotter.clear()
         visible = visible_parts or {part.id for part in model.parts}
         glyph_states = glyph_states or {}
-        streamline_states = streamline_states or {}
         glyph_part_ids = {
             preset.part_id
             for preset in model.glyphs
             if glyph_states.get(preset.id, {}).get("enabled")
-        }
-        streamline_part_ids = {
-            preset.part_id
-            for preset in model.streamlines
-            if streamline_states.get(preset.id, {}).get("enabled")
         }
         scalar_bar_added = False
 
@@ -67,9 +61,7 @@ class ModelScene:
             mesh = pv.read(surface_path)
             scalar_name = _apply_default_scalar(mesh, model.default_scalar.name, model.default_scalar.mode)
             mesh_color = part.color or DEFAULT_COLORS[index % len(DEFAULT_COLORS)]
-            if part.id in streamline_part_ids:
-                base_opacity = 0.08
-            elif part.id in glyph_part_ids:
+            if part.id in glyph_part_ids:
                 base_opacity = 0.14
             else:
                 base_opacity = 1.0
@@ -103,20 +95,8 @@ class ModelScene:
                 color_by=state.get("color_by"),
             )
 
-        for preset in model.streamlines:
-            if preset.part_id not in visible:
-                continue
-            state = streamline_states.get(preset.id, {})
-            if not state.get("enabled"):
-                continue
-            self._add_streamlines(
-                model,
-                preset,
-                timestep_index,
-                max(0.5, float(state.get("density", 1.0))),
-            )
-
-        self.plotter.add_axes()
+        if show_axes:
+            self.plotter.add_axes()
         self.plotter.reset_camera()
 
     def _add_glyphs(
@@ -168,48 +148,6 @@ class ModelScene:
             smooth_shading=True,
             show_scalar_bar=bool(scalar_name),
             scalar_bar_args={"title": scalar_bar_title} if scalar_name and scalar_bar_title else None,
-            reset_camera=False,
-        )
-
-    def _add_streamlines(
-        self,
-        model: ModelMetadata,
-        preset: StreamlinePreset,
-        timestep_index: int,
-        density: float,
-    ) -> None:
-        part = model.part_by_id(preset.part_id)
-        part_file = part.file_for_timestep(timestep_index)
-        seed_points = max(8, int(round(preset.seed.points * density)))
-        streamline_path = self.cache.streamlines_for(
-            part_file.path,
-            model_id=model.id,
-            part_id=part.id,
-            timestep_index=timestep_index,
-            preset_id=preset.id,
-            vectors=preset.vectors,
-            seed_center=preset.seed.center,
-            seed_radius=preset.seed.radius,
-            seed_points=seed_points,
-            tube_radius=preset.tube_radius,
-        )
-        streamlines = pv.read(streamline_path)
-        scalar_name = _apply_default_scalar(
-            streamlines,
-            preset.color_by.name,
-            preset.color_by.mode,
-        )
-        self.plotter.add_mesh(
-            streamlines,
-            name=f"analysis-streamline-{preset.id}",
-            scalars=scalar_name,
-            color=None if scalar_name else "#12B5CB",
-            cmap="coolwarm" if scalar_name else None,
-            ambient=0.25,
-            diffuse=0.85,
-            specular=0.35,
-            smooth_shading=True,
-            show_scalar_bar=bool(scalar_name),
             reset_camera=False,
         )
 

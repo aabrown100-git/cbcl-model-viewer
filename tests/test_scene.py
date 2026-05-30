@@ -71,53 +71,6 @@ class SceneTests(unittest.TestCase):
             scalar_bar_titles = {actor.GetTitle() for actor in scene.plotter.scalar_bars.values()}
             self.assertIn("Velocity magnitude", scalar_bar_titles)
 
-    def test_load_model_adds_streamline_actor(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            source = root / "flow.vtu"
-            volume = pv.ImageData(dimensions=(5, 5, 5), spacing=(0.25, 0.25, 0.25)).cast_to_unstructured_grid()
-            coords = volume.points
-            volume.point_data["Pressure"] = coords[:, 0] + coords[:, 1]
-            volume.point_data["Velocity"] = np.column_stack(
-                (np.ones(volume.n_points), np.zeros(volume.n_points), np.zeros(volume.n_points))
-            )
-            volume.save(source)
-            (root / "model.yaml").write_text(
-                yaml.safe_dump(
-                    {
-                        "id": "flow-demo",
-                        "title": "Flow demo",
-                        "parts": [{"id": "domain", "files": [{"path": "flow.vtu", "label": "0"}]}],
-                        "visualizations": {
-                            "streamlines": [
-                                {
-                                    "id": "velocity-lines",
-                                    "part": "domain",
-                                    "vectors": "Velocity",
-                                    "tube_radius": 0.01,
-                                    "seed": {
-                                        "center": [0.25, 0.25, 0.25],
-                                        "radius": 0.15,
-                                        "points": 12,
-                                    },
-                                }
-                            ]
-                        },
-                    },
-                    sort_keys=False,
-                )
-            )
-            model = load_model_metadata(root / "model.yaml")
-            scene = ModelScene(SurfaceCache(root / "cache"))
-
-            scene.load_model(
-                model,
-                streamline_states={"velocity-lines": {"enabled": True, "density": 1.0}},
-            )
-
-            actor_names = {key for key in scene.plotter.actors if isinstance(key, str)}
-            self.assertIn("analysis-streamline-velocity-lines", actor_names)
-
     def test_load_model_softens_surface_when_glyphs_are_enabled(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

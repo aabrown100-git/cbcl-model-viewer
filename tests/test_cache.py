@@ -50,7 +50,7 @@ class SurfaceCacheTests(unittest.TestCase):
             self.assertIsInstance(surface, pv.PolyData)
             self.assertIn("Pressure", surface.point_data)
 
-    def test_creates_and_reuses_glyph_and_streamline_cache(self):
+    def test_creates_and_reuses_glyph_cache(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source = root / "flow.vtu"
@@ -72,34 +72,7 @@ class SurfaceCacheTests(unittest.TestCase):
                 scale_factor=0.2,
                 glyph_count=40,
             )
-            streamlines_path = cache.streamlines_for(
-                source,
-                model_id="flow-demo",
-                part_id="domain",
-                timestep_index=0,
-                preset_id="velocity-lines",
-                vectors="Velocity",
-                seed_center=(0.25, 0.25, 0.25),
-                seed_radius=0.15,
-                seed_points=12,
-                tube_radius=0.01,
-            )
-            reused_streamlines = cache.streamlines_for(
-                source,
-                model_id="flow-demo",
-                part_id="domain",
-                timestep_index=0,
-                preset_id="velocity-lines",
-                vectors="Velocity",
-                seed_center=(0.25, 0.25, 0.25),
-                seed_radius=0.15,
-                seed_points=12,
-                tube_radius=0.01,
-            )
-
-            self.assertEqual(streamlines_path, reused_streamlines)
             self.assertGreater(pv.read(glyph_path).n_points, 0)
-            self.assertGreater(pv.read(streamlines_path).n_points, 0)
             glyphs = pv.read(glyph_path)
             self.assertTrue("Pressure" in glyphs.point_data or "Pressure" in glyphs.cell_data)
             self.assertIn("Velocity_magnitude", glyphs.point_data)

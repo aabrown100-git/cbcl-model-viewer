@@ -96,7 +96,7 @@ If `docker compose build` fails with a Docker daemon connection error, report th
 
 - Treat `model.yaml` as the contributor contract. If the user asks to add a model, prefer updating or creating metadata rather than inventing a separate registration layer.
 - Preserve the existing visual language: Stanford CBCL editorial styling, warm paper/sky background, red accent, and restrained control density.
-- Keep the viewer minimal unless the user explicitly asks for more scientific controls. Advanced analysis features like clipping and slices are intentionally deferred; the existing glyph and streamline controls are meant to stay simple and tutorial-like.
+- Keep the viewer minimal unless the user explicitly asks for more scientific controls. Advanced analysis features like clipping and slices are intentionally deferred; the existing glyph controls are meant to stay simple and tutorial-like.
 - When touching playback or part visibility, browser-check the trame UI rather than relying only on imports or pure Python smoke tests.
 
 ## Known quirks

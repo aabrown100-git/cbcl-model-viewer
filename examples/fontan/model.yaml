@@ -1,9 +1,9 @@
 id: fontan-sim-results-example
 title: Fontan Simulation Results Example
-description: Three timesteps from a Fontan simulation result. Mount the VTU folder as the model library to run this example without copying the large source files into the repo.
+description: Two timesteps from a Fontan simulation result bundled into the repo as a compact Git LFS example.
 default_scalar:
-  name: Velocity
-  mode: magnitude
+  name: Concentration
+  mode: scalar
 visualizations:
   glyphs:
     - id: velocity-glyphs
@@ -24,5 +24,3 @@ parts:
         label: "7200"
       - path: result_7232.vtu
         label: "7232"
-      - path: result_7264.vtu
-        label: "7264"

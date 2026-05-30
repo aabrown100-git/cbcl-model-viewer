@@ -86,50 +86,6 @@ class SurfaceCache:
             ),
         )
 
-    def streamlines_for(
-        self,
-        source: str | Path,
-        *,
-        model_id: str,
-        part_id: str,
-        timestep_index: int,
-        preset_id: str,
-        vectors: str,
-        seed_center: tuple[float, float, float],
-        seed_radius: float,
-        seed_points: int,
-        tube_radius: float,
-    ) -> Path:
-        source_path = Path(source).expanduser().resolve()
-        output_path = self._analysis_path(
-            source_path,
-            model_id=model_id,
-            part_id=part_id,
-            timestep_index=timestep_index,
-            preset_id=preset_id,
-            kind="streamlines",
-        )
-        payload = {
-            "vectors": vectors,
-            "seed_center": list(seed_center),
-            "seed_radius": round(seed_radius, 6),
-            "seed_points": int(seed_points),
-            "tube_radius": round(tube_radius, 6),
-        }
-        return self._derived_polydata_for(
-            source_path,
-            output_path,
-            parameters=payload,
-            builder=lambda mesh: self._build_streamlines(
-                mesh,
-                vectors=vectors,
-                seed_center=seed_center,
-                seed_radius=seed_radius,
-                seed_points=seed_points,
-                tube_radius=tube_radius,
-            ),
-        )
-
     def _surface_path(self, source: Path, model_id: str, part_id: str, timestep_index: int) -> Path:
         safe_stem = source.stem.replace(" ", "-")
         return (
@@ -208,28 +164,6 @@ class SurfaceCache:
             geom=pv.Arrow(),
         )
         return glyphs if isinstance(glyphs, pv.PolyData) else glyphs.extract_surface()
-
-    @staticmethod
-    def _build_streamlines(
-        mesh: pv.DataSet,
-        *,
-        vectors: str,
-        seed_center: tuple[float, float, float],
-        seed_radius: float,
-        seed_points: int,
-        tube_radius: float,
-    ) -> pv.PolyData:
-        source = _dataset_with_point_array(mesh, vectors)
-        streamlines = source.streamlines(
-            vectors=vectors,
-            source_center=seed_center,
-            source_radius=seed_radius,
-            n_points=seed_points,
-            progress_bar=False,
-        )
-        if tube_radius > 0 and streamlines.n_points:
-            streamlines = streamlines.tube(radius=tube_radius)
-        return streamlines if isinstance(streamlines, pv.PolyData) else streamlines.extract_surface()
 
     @staticmethod
     def _record_for(source: Path) -> CacheRecord:

@@ -40,20 +40,6 @@ class MetadataTests(unittest.TestCase):
                                 "color_by": {"name": "Pressure", "mode": "scalar"},
                             }
                         ],
-                        "streamlines": [
-                            {
-                                "id": "flow-lines",
-                                "label": "Flow lines",
-                                "part": "heart",
-                                "vectors": "Velocity",
-                                "tube_radius": 0.02,
-                                "seed": {
-                                    "center": [0.0, 0.0, 0.0],
-                                    "radius": 0.4,
-                                    "points": 24,
-                                },
-                            }
-                        ],
                     },
                     "parts": [
                         {
@@ -77,7 +63,6 @@ class MetadataTests(unittest.TestCase):
             self.assertEqual(model.parts[0].files[0].path, (root / "heart.vtp").resolve())
             self.assertEqual(model.glyphs[0].part_id, "heart")
             self.assertEqual(model.glyphs[0].color_by.name, "Pressure")
-            self.assertEqual(model.streamlines[0].seed.points, 24)
 
     def test_loads_time_series_model_and_discovers_model_folders(self):
         with tempfile.TemporaryDirectory() as tmp:

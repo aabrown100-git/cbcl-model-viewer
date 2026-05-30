@@ -81,11 +81,6 @@ class CBCLModelViewerApp(TrameApp):
         self.state.active_glyph_vectors = ""
         self.state.available_glyph_color_arrays = []
         self.state.active_glyph_color_by = "__solid__"
-        self.state.available_streamlines = []
-        self.state.active_streamline_id = ""
-        self.state.active_streamline_label = ""
-        self.state.streamline_enabled = False
-        self.state.streamline_density = 1.0
         self.state.playing = False
         self.state.has_ar = False
         self.state.selected_ar_glb_url = ""
@@ -119,7 +114,6 @@ class CBCLModelViewerApp(TrameApp):
         self.state.selected_parts = [{"title": part.label, "value": part.id} for part in model.parts]
         self.state.visible_parts = all_parts
         self._initialize_glyph_state(model)
-        self._initialize_streamline_state(model)
         self.state.has_ar = model.ar_assets.has_assets
         self.state.selected_ar_glb_url = model.asset_url(model.ar_assets.glb)
         self.state.selected_ar_usdz_url = model.asset_url(model.ar_assets.usdz)
@@ -152,22 +146,6 @@ class CBCLModelViewerApp(TrameApp):
             self.state.glyph_scale_factor = 1.0
         self._refresh_glyph_controls(model, reset_values=True)
 
-    def _build_streamline_options(self, model: ModelMetadata) -> list[dict[str, object]]:
-        return [{"id": preset.id, "title": preset.label} for preset in model.streamlines]
-
-    def _initialize_streamline_state(self, model: ModelMetadata) -> None:
-        streamline_options = self._build_streamline_options(model)
-        self.state.available_streamlines = streamline_options
-        self.state.streamline_enabled = False
-        self.state.streamline_density = 1.5
-        if streamline_options:
-            first = streamline_options[0]
-            self.state.active_streamline_id = str(first["id"])
-            self.state.active_streamline_label = str(first["title"])
-        else:
-            self.state.active_streamline_id = ""
-            self.state.active_streamline_label = ""
-
     @change("selected_timestep_index")
     def _on_timestep_change(self, selected_timestep_index, **_):
         if not self.state.selected_model_id:
@@ -192,22 +170,8 @@ class CBCLModelViewerApp(TrameApp):
         if self.state.current_page == "model" and self.state.selected_model_id:
             self._load_selected_scene()
 
-    @change("active_streamline_id")
-    def _on_active_streamline_change(self, active_streamline_id, **_):
-        for item in self.state.available_streamlines or []:
-            if item["id"] == active_streamline_id:
-                self.state.active_streamline_label = str(item["title"])
-                break
-        if self.state.current_page == "model" and self.state.selected_model_id:
-            self._load_selected_scene()
-
     @change("glyph_enabled", "glyph_count", "glyph_scale_factor", "active_glyph_vectors", "active_glyph_color_by")
     def _on_glyph_change(self, **_):
-        if self.state.current_page == "model" and self.state.selected_model_id:
-            self._load_selected_scene()
-
-    @change("streamline_enabled", "streamline_density")
-    def _on_streamline_change(self, **_):
         if self.state.current_page == "model" and self.state.selected_model_id:
             self._load_selected_scene()
 
@@ -335,16 +299,6 @@ class CBCLModelViewerApp(TrameApp):
             return max(1, int(round(mesh.n_points * preset.density)))
         return max(1, int(round(preset.density)))
 
-    def _streamline_state(self) -> dict[str, dict[str, object]]:
-        if not self.state.active_streamline_id:
-            return {}
-        return {
-            str(self.state.active_streamline_id): {
-                "enabled": bool(self.state.streamline_enabled),
-                "density": float(self.state.streamline_density),
-            }
-        }
-
     def _load_selected_scene(self) -> None:
         if not self.state.selected_model_id:
             return
@@ -356,7 +310,6 @@ class CBCLModelViewerApp(TrameApp):
                 timestep_index=int(self.state.selected_timestep_index),
                 visible_parts=visible,
                 glyph_states=self._glyph_state(),
-                streamline_states=self._streamline_state(),
             )
             if self.view:
                 self.ctrl.view_update()
@@ -436,8 +389,8 @@ class CBCLModelViewerApp(TrameApp):
                 html.P(
                     f"{len(model.parts)} part{'s' if len(model.parts) != 1 else ''} · "
                     f"{model.timestep_count} timestep{'s' if model.timestep_count != 1 else ''} · "
-                    f"{len(model.glyphs) + len(model.streamlines)} analysis preset"
-                    f"{'s' if len(model.glyphs) + len(model.streamlines) != 1 else ''}",
+                    f"{len(model.glyphs)} analysis preset"
+                    f"{'s' if len(model.glyphs) != 1 else ''}",
                     classes="cbcl-muted",
                 )
 
@@ -505,7 +458,7 @@ class CBCLModelViewerApp(TrameApp):
                     hide_details=True,
                 )
 
-            with html.Div(v_show="available_glyphs.length || available_streamlines.length", classes="cbcl-analysis-panel"):
+            with html.Div(v_show="available_glyphs.length", classes="cbcl-analysis-panel"):
                 html.Div("Analysis", classes="cbcl-eyebrow")
                 with html.Div(v_show="available_glyphs.length", classes="cbcl-analysis-card"):
                     v3.VSelect(
@@ -567,34 +520,6 @@ class CBCLModelViewerApp(TrameApp):
                         step=1,
                         hide_details=True,
                         density="compact",
-                    )
-
-                with html.Div(v_show="available_streamlines.length", classes="cbcl-analysis-card"):
-                    v3.VSelect(
-                        v_model=("active_streamline_id", ""),
-                        items=("available_streamlines", []),
-                        label="Streamline preset",
-                        density="compact",
-                        hide_details=True,
-                        classes="mb-3",
-                    )
-                    with html.Div(classes="cbcl-analysis-header"):
-                        html.Strong("{{ active_streamline_label }}")
-                        v3.VSwitch(
-                            v_model=("streamline_enabled", False),
-                            density="compact",
-                            hide_details=True,
-                            color="#8c1515",
-                            inset=True,
-                        )
-                    v3.VSlider(
-                        v_model=("streamline_density", 1.5),
-                        min=0.5,
-                        max=4.0,
-                        step=0.25,
-                        density="compact",
-                        hide_details=True,
-                        v_show="streamline_enabled",
                     )
 
             with html.Div(v_show="has_ar", classes="cbcl-ar-panel"):
@@ -795,7 +720,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     app = build_app(model_library=args.models, cache_dir=args.cache)
-    app.server.start(host=args.host, port=args.port)
+    app.server.start(host=args.host, port=args.port, open_browser=False)
 
 
 if __name__ == "__main__":
